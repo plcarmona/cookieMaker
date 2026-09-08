@@ -74,6 +74,29 @@ def test_state_rebuild_updates(tmp_path: Path):
         state.rebuild({"bridges": {"radius": -1}})
 
 
+def test_state_save_export_apply_updates(tmp_path: Path):
+    """save/export must reflect the updates they are handed, not the last
+    completed rebuild (debounce-race regression)."""
+    cfg_path = _make_config(tmp_path)
+    cfg = load_config(cfg_path)
+    state = WebState(cfg)
+    old_top = max(state.payload()["mesh"]["positions"][2::3])
+
+    # no prior rebuild: updates passed to save/export are the source of truth
+    state.save({"loops": {"1": {"z": 12.0, "width": None}}})
+    assert load_config(cfg_path).loops["1"].z == 12.0
+
+    out = state.export_stl({"loops": {"1": {"z": 12.0, "width": None}}})
+    assert out.exists() and out.stat().st_size > 84
+    import trimesh
+
+    exported = trimesh.load(out)
+    assert exported.bounds[1][2] >= 12.0 > old_top
+
+    with pytest.raises(ValueError, match="nothing|width|style|radius"):
+        state.export_stl({"bridges": {"width": -1}})
+
+
 @pytest.fixture
 def server(tmp_path: Path):
     cfg_path = _make_config(tmp_path)

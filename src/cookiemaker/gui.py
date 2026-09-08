@@ -84,6 +84,8 @@ class CookieGui:
         self.btn_save.on_clicked(lambda _: self.save_toml())
         self.btn_export = Button(wax(0.79, 0.16, 0.09, 0.05), "Export STL")
         self.btn_export.on_clicked(lambda _: self.export_stl())
+        for tb in (self.tb_z, self.tb_w, self.tb_bw, self.tb_bz):
+            tb.on_submit(lambda _text: self.apply_and_rebuild())
 
         self.fig.text(
             0.03, 0.235, "click a loop in the 2D view to edit its z/width", fontsize=9
@@ -121,17 +123,16 @@ class CookieGui:
 
     # ---------- rebuild ----------
 
-    def apply_and_rebuild(self) -> None:
+    def _apply_pending(self) -> None:
+        """Collect current textbox values into cfg (invalid floats ignored)."""
         if self.selected is not None and self.result is not None:
             o = cfg_mod.Overrides()
             try:
-                z = float(self.tb_z.text)
-                o.z = z
+                o.z = float(self.tb_z.text)
             except ValueError:
                 pass
             try:
-                width = float(self.tb_w.text)
-                o.width = width
+                o.width = float(self.tb_w.text)
             except ValueError:
                 pass
             if o.z is not None or o.width is not None:
@@ -144,6 +145,9 @@ class CookieGui:
             self.cfg.bridges.z = max(float(self.tb_bz.text), 1e-6)
         except ValueError:
             pass
+
+    def apply_and_rebuild(self) -> None:
+        self._apply_pending()
         self.rebuild()
 
     def rebuild(self) -> None:
@@ -234,20 +238,35 @@ class CookieGui:
 
     # ---------- persistence ----------
 
-    def save_toml(self) -> None:
-        path = self.cfg.config_path or self.cfg.svg.with_suffix(".toml")
-        path.write_text(save_config(self.cfg))
-        self.notes = [f"saved {path}"]
+    def _status_msg(self, msg: str) -> None:
+        self.notes = [msg]
         self.draw_status()
 
+    def save_toml(self) -> None:
+        """Apply pending edits, then write the config TOML."""
+        self._apply_pending()
+        try:
+            path = self.cfg.config_path or self.cfg.svg.with_suffix(".toml")
+            path.write_text(save_config(self.cfg))
+        except OSError as exc:
+            self._status_msg(f"error saving TOML: {exc}")
+            return
+        self._status_msg(f"saved {path}")
+
     def export_stl(self) -> None:
+        """Apply pending edits, rebuild, then export binary STL."""
+        self.apply_and_rebuild()
         if self.result is None or self.result.mesh is None:
+            self._status_msg("error exporting STL: nothing to export")
             return
         out: Path = self.cfg.output
-        out.parent.mkdir(parents=True, exist_ok=True)
-        stl_io.export_stl(self.result.mesh, out)
-        self.notes = [f"exported {out}"]
-        self.draw_status()
+        try:
+            out.parent.mkdir(parents=True, exist_ok=True)
+            stl_io.export_stl(self.result.mesh, out)
+        except OSError as exc:
+            self._status_msg(f"error exporting STL: {exc}")
+            return
+        self._status_msg(f"exported {out}")
 
 
 def run_gui(cfg: Project) -> None:

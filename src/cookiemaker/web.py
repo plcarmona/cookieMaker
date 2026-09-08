@@ -27,15 +27,43 @@ class WebState:
     def __init__(self, cfg: Project) -> None:
         self.cfg = cfg
         self.lock = threading.Lock()
+        # Serializes apply-updates+build+write so concurrent requests (live
+        # rebuild racing a save/export click) can never interleave.
+        self.op_lock = threading.Lock()
         self.result: BuildResult | None = None
         self.rebuild()
 
+    def _sync(self, updates: dict[str, Any] | None) -> None:
+        """Apply UI updates and rebuild under op_lock."""
+        with self.op_lock:
+            if updates:
+                _apply_updates(self.cfg, updates)
+            result = build_project(self.cfg)
+            with self.lock:
+                self.result = result
+
     def rebuild(self, updates: dict[str, Any] | None = None) -> None:
-        if updates:
-            _apply_updates(self.cfg, updates)
-        result = build_project(self.cfg)
-        with self.lock:
-            self.result = result
+        self._sync(updates)
+
+    def save(self, updates: dict[str, Any] | None = None) -> Path:
+        """Apply updates, rebuild, then write the config TOML."""
+        self._sync(updates)
+        path_out = self.cfg.config_path or self.cfg.svg.with_suffix(".toml")
+        with self.op_lock:
+            path_out.write_text(save_config(self.cfg))
+        return path_out
+
+    def export_stl(self, updates: dict[str, Any] | None = None) -> Path:
+        """Apply updates, rebuild, then export binary STL."""
+        self._sync(updates)
+        out = self.cfg.output
+        with self.op_lock:
+            result = self.result
+            if result is None or result.mesh is None:
+                raise ValueError("nothing to export")
+            out.parent.mkdir(parents=True, exist_ok=True)
+            stl_io.export_stl(result.mesh, out)
+        return out
 
     def payload(self) -> dict[str, Any]:
         with self.lock:
@@ -229,23 +257,16 @@ class _Handler(BaseHTTPRequestHandler):
         path = self.path.split("?", 1)[0]
         try:
             if path == "/api/build":
-                body = self._read_json()
-                self.state.rebuild(body)
+                self.state.rebuild(self._read_json())
                 self._send_json(self.state.payload())
             elif path == "/api/save":
-                path_out = self.state.cfg.config_path or self.state.cfg.svg.with_suffix(
-                    ".toml"
+                path_out = self.state.save(self._read_json())
+                self._send_json(
+                    {"ok": True, "path": str(path_out), **self.state.payload()}
                 )
-                path_out.write_text(save_config(self.state.cfg))
-                self._send_json({"ok": True, "path": str(path_out)})
             elif path == "/api/export":
-                out = self.state.cfg.output
-                result = self.state.result
-                if result is None or result.mesh is None:
-                    raise ValueError("nothing to export")
-                out.parent.mkdir(parents=True, exist_ok=True)
-                stl_io.export_stl(result.mesh, out)
-                self._send_json({"ok": True, "path": str(out)})
+                out = self.state.export_stl(self._read_json())
+                self._send_json({"ok": True, "path": str(out), **self.state.payload()})
             else:
                 self._send_json({"error": "not found"}, 404)
         except Exception as exc:  # noqa: BLE001 -- report, don't kill server

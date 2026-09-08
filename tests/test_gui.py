@@ -69,5 +69,35 @@ def test_gui_headless_edit_rebuild_save_export(tmp_path: Path):
         gui.export_stl()
         out = cfg.output
         assert out.exists() and out.stat().st_size > 84
+
+    finally:
+        plt.close("all")
+
+
+def test_gui_save_export_auto_apply_pending(tmp_path: Path):
+    """Save TOML / Export STL must reflect on-screen edits without Apply."""
+    import matplotlib.pyplot as plt
+
+    cfg_path = _make_config(tmp_path)
+    cfg = load_config(cfg_path)
+    gui = CookieGui(cfg)
+    try:
+        assert gui.result is not None and gui.result.mesh is not None
+        old_top = gui.result.mesh.bounds[1][2]
+
+        # edit z of loop 1, then save+export WITHOUT pressing Apply + Rebuild
+        gui.select(1)
+        gui.tb_z.set_val("12")
+        gui.tb_bw.set_val("not-a-number")  # invalid bridge box must not crash
+        gui.save_toml()
+        assert load_config(cfg_path).loops["1"].z == 12.0
+
+        gui.tb_bw.set_val("2")
+        gui.export_stl()
+        assert gui.result.mesh.bounds[1][2] >= 12.0 > old_top
+        assert cfg.output.exists() and cfg.output.stat().st_size > 84
+
+        # status line confirms the action instead of staying silent
+        assert str(cfg.output) in gui.notes[0]
     finally:
         plt.close("all")

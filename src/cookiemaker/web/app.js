@@ -243,15 +243,18 @@ function fillPanel() {
     selected = state.loops[0]?.id ?? null;
   }
   if (selected !== null) selectLoop(selected);
-  $("br-mode").value = cfg.bridges.mode;
-  $("br-style").value = cfg.bridges.style;
-  $("br-width").value = cfg.bridges.width;
-  $("br-z").value = cfg.bridges.z;
-  $("br-branches").value = cfg.bridges.branches;
-  $("br-radius").value = cfg.bridges.radius;
-  $("def-z").value = cfg.default_z;
-  $("def-w").value = cfg.default_width;
-  $("def-scale").value = cfg.scale;
+  const setVal = (id, v) => {
+    if (document.activeElement !== $(id)) $(id).value = v;
+  };
+  setVal("br-mode", cfg.bridges.mode);
+  setVal("br-style", cfg.bridges.style);
+  setVal("br-width", cfg.bridges.width);
+  setVal("br-z", cfg.bridges.z);
+  setVal("br-branches", cfg.bridges.branches);
+  setVal("br-radius", cfg.bridges.radius);
+  setVal("def-z", cfg.default_z);
+  setVal("def-w", cfg.default_width);
+  setVal("def-scale", cfg.scale);
 }
 
 function status() {
@@ -298,13 +301,14 @@ function currentOverrides() {
   return loopOverrides;
 }
 
-async function rebuild() {
-  const body = {
+function buildBody() {
+  currentOverrides();
+  return {
     scale: parseFloat($("def-scale").value) || state.config.scale,
     default_z: parseFloat($("def-z").value) || state.config.default_z,
     default_width: parseFloat($("def-w").value) || state.config.default_width,
     classes: state.config.classes,
-    loops: currentOverrides(),
+    loops: loopOverrides,
     bridges: {
       mode: $("br-mode").value,
       style: $("br-style").value,
@@ -314,13 +318,24 @@ async function rebuild() {
       radius: Math.max(parseFloat($("br-radius").value) || 0, 0),
     },
   };
-  state = await api("/api/build", body);
+}
+
+function applyState(newState) {
+  state = newState;
   loopOverrides = state.config.loops;
   buildMesh(state.mesh);
   buildBridges(state.bridges);
   buildFootprints(state.loops);
   fillPanel();
   status();
+}
+
+async function rebuild() {
+  try {
+    applyState(await api("/api/build", buildBody()));
+  } catch (err) {
+    $("status").textContent = `error: ${err.message}`;
+  }
 }
 
 let rebuildTimer = null;
@@ -335,12 +350,24 @@ for (const id of ["loop-z", "loop-w", "br-mode", "br-style", "br-width", "br-z",
 $("loop-select").addEventListener("change", (e) => selectLoop(parseInt(e.target.value, 10)));
 $("btn-rebuild").addEventListener("click", rebuild);
 $("btn-save").addEventListener("click", async () => {
-  const r = await api("/api/save");
-  $("status").textContent = `saved ${r.path}`;
+  clearTimeout(rebuildTimer);
+  try {
+    const r = await api("/api/save", buildBody());
+    applyState(r);
+    $("status").textContent = `saved ${r.path}`;
+  } catch (err) {
+    $("status").textContent = `error: ${err.message}`;
+  }
 });
 $("btn-export").addEventListener("click", async () => {
-  const r = await api("/api/export");
-  $("status").textContent = `exported ${r.path}`;
+  clearTimeout(rebuildTimer);
+  try {
+    const r = await api("/api/export", buildBody());
+    applyState(r);
+    $("status").textContent = `exported ${r.path}`;
+  } catch (err) {
+    $("status").textContent = `error: ${err.message}`;
+  }
 });
 $("tg-wire").addEventListener("change", (e) => {
   if (mainMesh) mainMesh.material.wireframe = e.target.checked;

@@ -1,0 +1,32 @@
+[project]
+name = "cookiemaker"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+authors = [
+    { name = "pedro carmona", email = "pl.carmonaf@gmail.com" }
+]
+requires-python = ">=3.14"
+dependencies = [
+    "manifold3d>=3.5.2",
+    "shapely>=2.1.2",
+    "svgelements>=1.9.6",
+    "trimesh>=5.1.0",
+]
+
+[project.scripts]
+cookiemaker = "cookiemaker:main"
+
+[project.optional-dependencies]
+gui = [
+    "matplotlib>=3.11.1",
+]
+
+[build-system]
+requires = ["uv_build>=0.12.3,<0.13.0"]
+build-backend = "uv_build"
+
+[dependency-groups]
+dev = [
+    "pytest>=9.1.1",
+]

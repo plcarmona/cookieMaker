@@ -1,0 +1,50 @@
+# cookiemaker project config
+# Edit z / width per loop id (see table from `cookiemaker inspect`),
+# or per css class. Resolution: [loops] > [classes] > defaults.
+svg = "tony.svg"
+output = "tony.stl"
+
+# SVG user units -> mm.
+scale = 1.0
+
+# Defaults for every loop without a more specific override.
+default_z = 40
+default_width = 5
+
+[classes]
+# st3 = { z = 6.0 }
+
+[loops]
+# "0" = { z = 4, width = 2 }  # st0 ring
+# "1" = { z = 4, width = 2 }  # st1 ring
+# "2" = { z = 4, width = 2 }  # st2 ring
+# "3" = { z = 4, width = 2 }  # st3 filled
+# "4" = { z = 4, width = 2 }  # st3 filled
+# "5" = { z = 4, width = 2 }  # st0 open
+# "6" = { z = 4, width = 2 }  # st0 open
+# "7" = { z = 4, width = 2 }  # st0 open
+# "8" = { z = 4, width = 2 }  # st0 open
+# "9" = { z = 4, width = 2 }  # st0 open
+# "10" = { z = 4, width = 2 }  # st0 open
+# "11" = { z = 4, width = 2 }  # st0 open
+# "12" = { z = 4, width = 2 }  # st0 open
+# "13" = { z = 4, width = 2 }  # st0 open
+# "14" = { z = 4, width = 2 }  # st0 ring
+# "15" = { z = 4, width = 2 }  # st0 open
+# "16" = { z = 4, width = 2 }  # st0 open
+# "17" = { z = 4, width = 2 }  # st0 open
+# "18" = { z = 4, width = 2 }  # st0 open
+# "19" = { z = 4, width = 2 }  # st0 open
+# "20" = { z = 4, width = 2 }  # st0 open
+# "21" = { z = 4, width = 2 }  # st0 open
+# "22" = { z = 4, width = 2 }  # st0 ring
+# "23" = { z = 4, width = 2 }  # st0 open
+# "24" = { z = 4, width = 2 }  # st0 open
+# "25" = { z = 4, width = 2 }  # st0 open
+# "26" = { z = 4, width = 2 }  # st0 ring
+
+[bridges]
+mode = "auto"  # auto | manual | off
+width = 1.5
+z = 2.0
+# manual = [["3", "7"]]  # pairs of loop ids (mode = "manual")
